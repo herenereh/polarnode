@@ -1,66 +1,155 @@
+import { useEffect, useState } from "react";
+import { calculateCRC16CCITTFalse } from "./crc16";
 
 interface CommandProps {
-    ws: WebSocket;
-    fanState: number | null;
-    heaterState: number | null;
+  ws: WebSocket;
+  fanState: number | null;
+  heaterState: number | null;
+  temp: number | null;
 }
 
-function Command({ ws, fanState, heaterState }: CommandProps) {
-    
+//this guys basically does the precision controls
+//target is the where we wanna keep the temp
+//band is interval where do nothing and stage_gap is the gap between the low and high stages
+//this way we avoid rapid switching and keep the temp stable around the target
+//you can adjust these values to make it more or less aggressive in controlling the temp
+const target = 5;
+const band = 1;
+const stage_gap = 2;
+
+
+function Command({ ws, fanState, heaterState, temp }: CommandProps) {
+
+  const [isAuto, setIsAuto] = useState(true); 
+
+  const sendPacket = (command: number, payload: number) => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+
+    const buffer = new ArrayBuffer(5);
+    const view = new DataView(buffer);
+
+    view.setUint8(0, 0xBA);    
+    view.setUint8(1, command);  
+    view.setUint8(2, payload);   
+
+    const crcData = new Uint8Array(buffer, 0, 3);
+    const crc = calculateCRC16CCITTFalse(crcData);
+    view.setUint16(3, crc, false); 
+
+    ws.send(buffer);
+  };
+
+  useEffect(() => {
+    if (!isAuto) return;
+    if (temp === null) return;
+    if (fanState === null || heaterState === null) return;
+    if (ws.readyState !== WebSocket.OPEN) return;
+
+    let desiredFan = 0;
+    let desiredHeater = 0;
+
    
-    const calculateCheckSum = (header: number, command: number, payload: number): number => {
-        return (header ^ command ^ payload) & 0xFF;
+    if (temp <= target - band - stage_gap) {
+      desiredHeater = 2;
+    } else if (temp <= target - band) {
+      desiredHeater = 1;
     }
 
-    const sendCommand = (commandName: string) => {
-        if (ws.readyState === WebSocket.OPEN) {
-            const buffer = new ArrayBuffer(4);
-            const view = new DataView(buffer);
-            
-            const header = 0xBA;
-            let command: number;
-            let payload: number;
-            
-            if (commandName === 'Fan') {
-                command = 0x01;
-                payload = (fanState === 1) ? 0 : 1;
-            } else if (commandName === 'Heater') {
-                command = 0x02;
-                payload = (heaterState === 1) ? 0 : 1;
-            } else {
-                console.error('Unknown command');
-                return;
-            }
-            
-            view.setUint8(0, header);
-            view.setUint8(1, command);
-            view.setUint8(2, payload);
-            
-            const checkSum = calculateCheckSum(header, command, payload);
-            view.setUint8(3, checkSum);
-            
-            ws.send(buffer);
+   
+    else if (temp >= target + band + stage_gap) {
+      desiredFan = 2;
+    } else if (temp >= target + band) {
+      desiredFan = 1;
+    }
+  
+    if (desiredFan !== fanState) {
+      sendPacket(0x01, desiredFan);
+    }
+
+    if (desiredHeater !== heaterState) {
+      sendPacket(0x02, desiredHeater);
+    }
+
+  }, [temp, fanState, heaterState]);
+
+  const sendCommand = (commandName: string) => {
+    if (ws.readyState === WebSocket.OPEN) {
+        const buffer = new ArrayBuffer(5);
+        const view = new DataView(buffer);
+        
+        const header = 0xBA;
+        let command: number;
+        let payload = 0;
+        
+        if (commandName === 'Fan') {
+            command = 0x01;
+            payload = ((fanState ?? 0) + 1) %3; 
+        } else if (commandName === 'Heater') {
+            command = 0x02;
+            payload = ((heaterState ?? 0) + 1) %3;
         } else {
-            console.error('WebSocket not open');
+            console.error('Unknown command');
+            return;
         }
-    };
+        
+        view.setUint8(0, header);
+        view.setUint8(1, command);
+        view.setUint8(2, payload);
+        
+        const crcData = new Uint8Array(buffer, 0, 3);
+        const crc = calculateCRC16CCITTFalse(crcData);
+        view.setUint16(3, crc, false);
+        
+        ws.send(buffer);
+    } else {
+        console.error('WebSocket not open');
+    }
+};
 
-    
-    
-    return (
-        <div className="flex flex-row items-center justify-center gap-4">
-            <button 
-                onClick={() => sendCommand('Fan')} 
-                className="bg-blue-500 text-white p-2 rounded-md hover:bg-blue-200 hover:scale-105 active:scale-95 transition-all duration-200 font-medium shadow-md hover:shadow-lg">
-                Fan
-            </button>
-            <button 
-                onClick={() => sendCommand('Heater')} 
-                className="bg-red-500 text-white p-2 rounded-md hover:bg-red-200 hover:scale-105 active:scale-95 transition-all duration-200 font-medium shadow-md hover:shadow-lg">
-                Heater
-            </button>
+  return (
+    <div className="space-y-4">
+      
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-gray-300">Dev Mode:</span>
+        <div className="flex rounded-lg border border-gray-600 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setIsAuto(true)}
+            className={`px-3 py-1.5 text-sm font-medium ${isAuto ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+          >
+            Off
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAuto(false)}
+            className={`px-3 py-1.5 text-sm font-medium ${!isAuto ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+          >
+            On
+          </button>
         </div>
-    )
-}
-export default Command;
+      </div>
 
+      {isAuto ? (
+        <p className="text-gray-400 text-sm"></p>
+      ) : (
+        <div className="flex justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => sendCommand('Fan')}
+            className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            Fan
+          </button>
+          <button
+            type="button"
+            onClick={() => sendCommand('Heater')}
+            className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-700">
+            Heater
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default Command;

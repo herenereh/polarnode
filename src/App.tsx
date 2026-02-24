@@ -4,6 +4,7 @@ import { formatStatus } from './statusBits';
 import { calculateCRC16CCITTFalse } from './crc16';
 import {float16ToNumber} from './float16toNumber';
 import { getStatusString } from './states';
+import {getTemperatureColor} from './temperatureToColor';
 
 const ws = new WebSocket('wss://polarnode.alsoft.nl.');
 ws.binaryType = 'arraybuffer';
@@ -93,24 +94,38 @@ function App() {
             <span className="text-gray-300">ID:</span>
             <span className="text-white font-mono">{sensorData.id !== null ? sensorData.id : '--'}</span>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-300">Temperature:</span>
-            <span className="text-white font-mono">{sensorData.temp !== null ? `${sensorData.temp}°C` : '--'}</span>
+
+          <div className="flex flex-col items-center space-y-2">
+            <div className="text-white font-mono">{sensorData.temp}°C</div>
+          <div className="w-full h-70 rounded-md border border-gray-600"
+          style={{backgroundColor: sensorData.temp !== null ? getTemperatureColor(sensorData.temp) : 'transparent',}}>      
           </div>
+          
+          </div>
+
           <div className="flex justify-between items-center">
             <span className="text-gray-300">Fan:</span>
             <span className="text-white font-mono">{getStatusString(sensorData.fanState)}</span>
           </div>
+          
           <div className="flex justify-between items-center">
             <span className="text-gray-300">Heater:</span>
             <span className="text-white font-mono">{getStatusString(sensorData.heaterState)}</span>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-300">Battery Level:</span>
-            <span className="text-white font-mono">{sensorData.batteryLevel !== null ? `${sensorData.batteryLevel}%` : '--'}</span>
+
+          <div className="space-y-1">
+          {sensorData.batteryLevel !== null && (
+            <div className="relative w-full h-10 bg-gray-700 rounded overflow-hidden">
+              <div  className="h-full bg-green-500 transition-all duration-500"
+                    style={{ width: `${Math.max(0, Math.min(100, sensorData.batteryLevel))}%` }}/>
+              <span className="absolute inset-0 flex items-center justify-center text-s font-mono text-white">
+              {sensorData.batteryLevel}%
+              </span>
+            </div>
+            )}
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-300">Status:</span>
+
+          <div className="flex justify-center items-center">
             <span className="text-white font-mono">{formatStatus(sensorData.status)}</span>
           </div>
         </div>

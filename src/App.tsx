@@ -1,10 +1,13 @@
 import React from 'react'
 import Command from './Command';
+import EyeTracker from './eyeTracker';
 import { formatStatus } from './statusBits';
 import { calculateCRC16CCITTFalse } from './crc16';
 import {float16ToNumber} from './float16toNumber';
 import { getStatusString } from './states';
 import {getTemperatureColor} from './temperatureToColor';
+import expression1 from './assets/brrr.png';
+import expression2 from './assets/hothothot.png';
 
 const ws = new WebSocket('wss://polarnode.alsoft.nl.');
 ws.binaryType = 'arraybuffer';
@@ -96,11 +99,14 @@ function App() {
           </div>
 
           <div className="flex flex-col items-center space-y-2">
-            <div className="text-white font-mono">{sensorData.temp}°C</div>
-          <div className="w-full h-70 rounded-md border border-gray-600"
+          <div className="text-white font-mono">{sensorData.temp}°C</div>
+           
+          <div className="relative w-full h-70 rounded-md border border-gray-600"
           style={{backgroundColor: sensorData.temp !== null ? getTemperatureColor(sensorData.temp) : 'transparent',}}>      
+          <div className="abolute inset-0 flex justify-center p-6"> <EyeTracker/>  </div>
+          <img src={expression1} alt="FreezingExpression" />
+          <img src={expression2} alt="HotExpression" />
           </div>
-          
           </div>
 
           <div className="flex justify-between items-center">

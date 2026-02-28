@@ -6,13 +6,14 @@ import { calculateCRC16CCITTFalse } from './crc16';
 import {float16ToNumber} from './float16toNumber';
 import { getStatusString } from './states';
 import {getTemperatureColor} from './temperatureToColor';
-import expression1 from './assets/brrr.png';
-import expression2 from './assets/hothothot.png';
+import ExpressionChange from './expressionChange';
+
 
 const ws = new WebSocket('wss://polarnode.alsoft.nl.');
 ws.binaryType = 'arraybuffer';
 
 function App() {
+  const [devModeEnabled, setDevModeEnabled] = React.useState(true);
   const [sensorData, setSensorData] = React.useState<{
     id: number | null;
     temp: number | null;
@@ -87,41 +88,49 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900">
-      <header className="App mb-8">
-        <h1 className="text-3xl font-bold underline text-white hover:text-blue-500">Polar Node</h1>
+      <header className="App">
       </header>
       
-      <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-8 w-full max-w-md">
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
+      <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-4 w-full max-w-md">
+        <div className="space-y-3">
+
+          {!devModeEnabled ? ( 
+            <div className="flex justify-between items-center">
             <span className="text-gray-300">ID:</span>
             <span className="text-white font-mono">{sensorData.id !== null ? sensorData.id : '--'}</span>
-          </div>
+          </div>) : (<p className="text-gray-400 text-sm"></p>)}
+          
 
-          <div className="flex flex-col items-center space-y-2">
-          <div className="text-white font-mono">{sensorData.temp}°C</div>
-           
+          <div className="flex flex-col items-center space-y-4">
+
+          <div className='border-2 border-gray-700'> 
+            <div className="text-white font-mono text-lg">{sensorData.temp}°C</div>
+          </div>
+         
           <div className="relative w-full h-70 rounded-md border border-gray-600"
           style={{backgroundColor: sensorData.temp !== null ? getTemperatureColor(sensorData.temp) : 'transparent',}}>      
           <div className="abolute inset-0 flex justify-center p-6"> <EyeTracker/>  </div>
-          <img src={expression1} alt="FreezingExpression" />
-          <img src={expression2} alt="HotExpression" />
+          <ExpressionChange temp={sensorData.temp}/>
+         
           </div>
           </div>
 
-          <div className="flex justify-between items-center">
-            <span className="text-gray-300">Fan:</span>
+
+          <div className='flex flex-col space-y-2 border-t border-gray-700 pt-3'>
+          <div className="flex flex-col justify-between">
+            <span className="text-gray-300">Fan</span>
             <span className="text-white font-mono">{getStatusString(sensorData.fanState)}</span>
           </div>
           
-          <div className="flex justify-between items-center">
-            <span className="text-gray-300">Heater:</span>
+          <div className="flex flex-col justify-between">
+            <span className="text-gray-300">Heater</span>
             <span className="text-white font-mono">{getStatusString(sensorData.heaterState)}</span>
+          </div>
           </div>
 
           <div className="space-y-1">
           {sensorData.batteryLevel !== null && (
-            <div className="relative w-full h-10 bg-gray-700 rounded overflow-hidden">
+            <div className="relative w-full h-8 bg-gray-700 rounded overflow-hidden">
               <div  className="h-full bg-green-500 transition-all duration-500"
                     style={{ width: `${Math.max(0, Math.min(100, sensorData.batteryLevel))}%` }}/>
               <span className="absolute inset-0 flex items-center justify-center text-s font-mono text-white">
@@ -131,13 +140,13 @@ function App() {
             )}
           </div>
 
-          <div className="flex justify-center items-center">
+          <div className="flex justify-center items-center border-t border-gray-700 pt-4">
             <span className="text-white font-mono">{formatStatus(sensorData.status)}</span>
           </div>
         </div>
         
-        <div className="mt-6 pt-4 border-t border-gray-700">
-          <Command ws={ws}  fanState={sensorData.fanState} heaterState={sensorData.heaterState} temp={sensorData.temp} />
+        <div className="mt-4 pt-3 border-t border-gray-700">
+          <Command ws={ws}  fanState={sensorData.fanState} heaterState={sensorData.heaterState} temp={sensorData.temp} devModeEnabled={devModeEnabled} setDevModeEnabled={setDevModeEnabled} />
         </div>
       </div>
     </div>

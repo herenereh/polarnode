@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect} from "react";
 import { calculateCRC16CCITTFalse } from "./crc16";
 
 interface CommandProps {
@@ -6,6 +6,8 @@ interface CommandProps {
   fanState: number | null;
   heaterState: number | null;
   temp: number | null;
+  devModeEnabled: boolean;
+  setDevModeEnabled: (enabled: boolean) => void;
 }
 
 //this guys basically does the precision controls
@@ -18,9 +20,8 @@ const band = 1;
 const stage_gap = 2;
 
 
-function Command({ ws, fanState, heaterState, temp }: CommandProps) {
-
-  const [isAuto, setIsAuto] = useState(true); 
+function Command({ ws, fanState, heaterState, temp, devModeEnabled, setDevModeEnabled }: CommandProps) {
+ 
 
   const sendPacket = (command: number, payload: number) => {
     if (ws.readyState !== WebSocket.OPEN) return;
@@ -40,7 +41,7 @@ function Command({ ws, fanState, heaterState, temp }: CommandProps) {
   };
 
   useEffect(() => {
-    if (!isAuto) return;
+    if (!devModeEnabled) return;
     if (temp === null) return;
     if (fanState === null || heaterState === null) return;
     if (ws.readyState !== WebSocket.OPEN) return;
@@ -114,22 +115,22 @@ function Command({ ws, fanState, heaterState, temp }: CommandProps) {
         <div className="flex rounded-lg border border-gray-600 overflow-hidden">
           <button
             type="button"
-            onClick={() => setIsAuto(true)}
-            className={`px-3 py-1.5 text-sm font-medium ${isAuto ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+            onClick={() => setDevModeEnabled(true)}
+            className={`px-3 py-1.5 text-sm font-medium ${devModeEnabled ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
           >
             Off
           </button>
           <button
             type="button"
-            onClick={() => setIsAuto(false)}
-            className={`px-3 py-1.5 text-sm font-medium ${!isAuto ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+            onClick={() => setDevModeEnabled(false)}
+            className={`px-3 py-1.5 text-sm font-medium ${!devModeEnabled ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
           >
             On
           </button>
         </div>
       </div>
 
-      {isAuto ? (
+      {devModeEnabled ? (
         <p className="text-gray-400 text-sm"></p>
       ) : (
         <div className="flex justify-center gap-2">

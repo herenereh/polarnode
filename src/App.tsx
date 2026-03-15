@@ -1,6 +1,7 @@
 import React from 'react'
 import Command from './Command';
 import EyeTracker from './eyeTracker';
+import TempChart, {type TempChartData} from './tempChart';
 import { formatStatus } from './statusBits';
 import { calculateCRC16CCITTFalse } from './crc16';
 import {float16ToNumber} from './float16toNumber';
@@ -13,7 +14,22 @@ const ws = new WebSocket('wss://polarnode.alsoft.nl.');
 ws.binaryType = 'arraybuffer';
 
 function App() {
+
+  const [csvLog, setCSVLog] = React.useState<{ 
+    time: number;
+    id: number;
+    temp: number; 
+    fanState: number;
+    heaterState: number
+    batteryLevel: number | null; 
+    status: number
+  }[]>
+  ([]);
+
+  const [tempChartData, setTempChartData] = React.useState<TempChartData>([]);
+
   const [devModeEnabled, setDevModeEnabled] = React.useState(true);
+
   const [sensorData, setSensorData] = React.useState<{
     id: number | null;
     temp: number | null;
@@ -73,6 +89,26 @@ function App() {
         const status = view.getUint8(hasBattery ? 8 : 7);
         console.log('Battery Level:', batteryLevel);
 
+        setCSVLog((prev) => {
+          const logs = {
+            time: Date.now(),
+            id,
+            temp,
+            fanState,
+            heaterState,
+            batteryLevel: batteryLevel ?? (prev.length > 0 ? prev[prev.length - 1].batteryLevel : 100),
+            status,
+          };
+          return [...prev, logs].slice(-50);
+        });
+
+        setTempChartData((prev) => {
+          const currentTime = Date.now();
+          const cutoff = currentTime - 60_000;
+          const next = [...prev.filter((p) => p.time >= cutoff), { time: currentTime, temp }];
+          return next;
+        });
+
         setSensorData((prev) => ({
           id, 
           temp,
@@ -82,6 +118,7 @@ function App() {
           batteryLevel:
             batteryLevel !== null ? batteryLevel : prev.batteryLevel,
         }));
+        
         console.log('Received:', { header, id, temp, fanState, heaterState, batteryLevel, status, calculatedCRC });
       };
     }, []);
@@ -92,7 +129,7 @@ function App() {
       </header>
       
       <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-4 w-full max-w-md">
-        <div className="space-y-3">
+        <div className="space-y-2">
 
           {!devModeEnabled ? ( 
             <div className="flex justify-between items-center">
@@ -103,8 +140,8 @@ function App() {
 
           <div className="flex flex-col items-center space-y-4">
 
-          <div className='border-2 border-gray-700'> 
-            <div className="text-white font-mono text-lg">{sensorData.temp}°C</div>
+          <div className='border-10 border-gray-700'> 
+            <div className="text-white font-mono text-2xl">{sensorData.temp}°C</div>
           </div>
          
           <div className="relative w-full h-70 rounded-md border border-gray-600"
@@ -116,29 +153,32 @@ function App() {
           </div>
 
 
-          <div className='flex flex-col space-y-2 border-t border-gray-700 pt-3'>
-          <div className="flex flex-col justify-between">
-            <span className="text-gray-300">Fan</span>
-            <span className="text-white font-mono">{getStatusString(sensorData.fanState)}</span>
-          </div>
-          
-          <div className="flex flex-col justify-between">
-            <span className="text-gray-300">Heater</span>
-            <span className="text-white font-mono">{getStatusString(sensorData.heaterState)}</span>
-          </div>
+          <div className="flex flex-row justify-center gap-50 border-t border-gray-700 pt-3">
+            <div className="flex flex-col items-center">
+              <span className="text-gray-300 text-xl">Fan</span>
+              <span className="text-white font-mono">{getStatusString(sensorData.fanState)}</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-gray-300 text-xl">Heater</span>
+              <span className="text-white font-mono">{getStatusString(sensorData.heaterState)}</span>
+            </div>
           </div>
 
-          <div className="space-y-1">
+          <TempChart data={tempChartData} />
+
+          <div className="space-y-2">
           {sensorData.batteryLevel !== null && (
-            <div className="relative w-full h-8 bg-gray-700 rounded overflow-hidden">
-              <div  className="h-full bg-green-500 transition-all duration-500"
+            <div className="relative w-full h-10 bg-gray-700 rounded overflow-hidden">
+              <div  className={`h-full bg-green-500 transition-all duration-500 ${sensorData.batteryLevel < 10 ? 'bg-red-500' : 'bg-green-500'}`}
                     style={{ width: `${Math.max(0, Math.min(100, sensorData.batteryLevel))}%` }}/>
               <span className="absolute inset-0 flex items-center justify-center text-s font-mono text-white">
-              {sensorData.batteryLevel}%
+              {sensorData.batteryLevel === 0 ? 'No Battery' : `${sensorData.batteryLevel}%`}
               </span>
             </div>
             )}
           </div>
+
+          
 
           <div className="flex justify-center items-center border-t border-gray-700 pt-4">
             <span className="text-white font-mono">{formatStatus(sensorData.status)}</span>
@@ -146,8 +186,9 @@ function App() {
         </div>
         
         <div className="mt-4 pt-3 border-t border-gray-700">
-          <Command ws={ws}  fanState={sensorData.fanState} heaterState={sensorData.heaterState} temp={sensorData.temp} devModeEnabled={devModeEnabled} setDevModeEnabled={setDevModeEnabled} />
+          <Command ws={ws}  fanState={sensorData.fanState} heaterState={sensorData.heaterState} temp={sensorData.temp} csvLog={csvLog} devModeEnabled={devModeEnabled} setDevModeEnabled={setDevModeEnabled}  />
         </div>
+        
       </div>
     </div>
   );
